@@ -5,9 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class MedicalServiceApplication {
-
-	public static void main(String[] args) {
-		SpringApplication.run(MedicalServiceApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(MedicalServiceApplication.class, args);
+    }
 }
