@@ -1,0 +1,21 @@
+### TEST 1: Rejestracja ze znanym wyciekłym hasłem
+POST http://localhost:8081/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "test.wycieku@example.com",
+  "password": "P@ssword123!",
+  "username": "tester01",
+  "phone": "+48111222333"
+}
+
+### TEST 2: Rejestracja z bezpiecznym hasłem (Oczekiwany sukces 201)
+POST http://localhost:8081/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "test.bezpieczny@example.com",
+  "password": "Vito_Safe_Password_2026!@#",
+  "username": "tester02",
+  "phone": "+48999888777"
+}
