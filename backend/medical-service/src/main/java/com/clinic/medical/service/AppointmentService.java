@@ -35,13 +35,11 @@ public class AppointmentService {
     public AppointmentResponse create(AppointmentRequest request) {
     Patient patient = findPatient(request.getPatientId());
 
-    // Jeśli zwykły PATIENT — może umawiać tylko siebie
     if (SecurityUtils.isPatient()) {
         if (!patient.getUserId().equals(SecurityUtils.getCurrentUserId())) {
             throw new AccessDeniedException("Możesz umawiać wizyty tylko dla siebie.");
         }
     }
-    // Admin, Doctor, Nurse mogą umawiać dla dowolnego pacjenta
 
 
         MedicalStaff doctor = findDoctor(request.getDoctorId());
