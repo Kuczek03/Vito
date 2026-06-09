@@ -22,7 +22,6 @@ public class JwtConfig {
     public JwtDecoder jwtDecoder() {
         byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
 
-        // Dopasuj algorytm identycznie jak jjwt w auth-service
         MacAlgorithm macAlgorithm;
         String jcaAlgorithm;
         if (keyBytes.length >= 64) {
@@ -38,7 +37,7 @@ public class JwtConfig {
 
         SecretKey key = new SecretKeySpec(keyBytes, jcaAlgorithm);
         return NimbusJwtDecoder.withSecretKey(key)
-                .macAlgorithm(macAlgorithm)  // <-- TO BYŁO BRAKUJĄCE
+                .macAlgorithm(macAlgorithm)
                 .build();
     }
 }
