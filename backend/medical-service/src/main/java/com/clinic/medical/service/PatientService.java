@@ -31,8 +31,6 @@ public class PatientService {
             throw new ConflictException("Pacjent z tym numerem PESEL już istnieje.");
         }
 
-        // Jeśli pacjent tworzy swój profil sam – userId bierzemy z tokenu.
-        // Jeśli admin/lekarz/pielęgniarka tworzy profil – userId pochodzi z requesta.
         Long targetUserId;
         if (SecurityUtils.isPatient()) {
             targetUserId = SecurityUtils.getCurrentUserId();
