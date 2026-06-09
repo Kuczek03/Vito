@@ -6,6 +6,10 @@ import lombok.Data;
 @Data
 public class PatientRequest {
 
+    // userId konta pacjenta – wymagany gdy tworzy admin/lekarz/pielęgniarka
+    // gdy tworzy sam pacjent, zostanie użyte jego własne userId z tokenu
+    private Long userId;
+
     @NotBlank
     @Size(max = 64)
     private String firstName;
