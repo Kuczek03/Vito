@@ -21,8 +21,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PatientService {
 
-    private final PatientRepository  patientRepository;
-    private final EncryptionService  encryptionService;
+    private final PatientRepository patientRepository;
+    private final EncryptionService encryptionService;
 
     @Transactional
     public PatientResponse create(PatientRequest request) {
@@ -31,10 +31,24 @@ public class PatientService {
             throw new ConflictException("Pacjent z tym numerem PESEL już istnieje.");
         }
 
-        Long currentUserId = SecurityUtils.getCurrentUserId();
+        Long targetUserId;
+        if (SecurityUtils.isPatient()) {
+            targetUserId = SecurityUtils.getCurrentUserId();
+        } else if (SecurityUtils.isAdmin() || SecurityUtils.isDoctor() || SecurityUtils.isNurse()) {
+            if (request.getUserId() == null) {
+                throw new IllegalArgumentException("Pole userId jest wymagane przy tworzeniu profilu pacjenta przez personel.");
+            }
+            targetUserId = request.getUserId();
+        } else {
+            throw new AccessDeniedException("Brak uprawnień do tworzenia profilu pacjenta.");
+        }
+
+        if (patientRepository.findByUserId(targetUserId).isPresent()) {
+            throw new ConflictException("Ten użytkownik ma już profil pacjenta.");
+        }
 
         Patient patient = Patient.builder()
-                .userId(currentUserId)
+                .userId(targetUserId)
                 .firstName(encryptionService.encrypt(request.getFirstName()))
                 .lastName(encryptionService.encrypt(request.getLastName()))
                 .pesel(encryptionService.encrypt(request.getPesel()))
@@ -44,7 +58,8 @@ public class PatientService {
                 .build();
 
         patientRepository.save(patient);
-        log.info("Patient profile created id={} by userId={}", patient.getId(), currentUserId);
+        log.info("Patient profile created id={} targetUserId={} by userId={}",
+            patient.getId(), targetUserId, SecurityUtils.getCurrentUserId());
         return toResponse(patient);
     }
 

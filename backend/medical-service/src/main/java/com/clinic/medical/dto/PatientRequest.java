@@ -5,6 +5,7 @@ import lombok.Data;
 
 @Data
 public class PatientRequest {
+    private Long userId;
 
     @NotBlank
     @Size(max = 64)

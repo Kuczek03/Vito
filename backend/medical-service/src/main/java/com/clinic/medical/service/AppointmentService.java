@@ -33,14 +33,15 @@ public class AppointmentService {
 
     @Transactional
     public AppointmentResponse create(AppointmentRequest request) {
-        if (!SecurityUtils.isAdmin() && !SecurityUtils.isDoctor() && !SecurityUtils.isNurse()) {
-            Patient patient = findPatient(request.getPatientId());
-            if (!patient.getUserId().equals(SecurityUtils.getCurrentUserId())) {
-                throw new AccessDeniedException("Możesz umawiać wizyty tylko dla siebie.");
-            }
-        }
+    Patient patient = findPatient(request.getPatientId());
 
-        Patient     patient = findPatient(request.getPatientId());
+    if (SecurityUtils.isPatient()) {
+        if (!patient.getUserId().equals(SecurityUtils.getCurrentUserId())) {
+            throw new AccessDeniedException("Możesz umawiać wizyty tylko dla siebie.");
+        }
+    }
+
+
         MedicalStaff doctor = findDoctor(request.getDoctorId());
 
         Appointment appointment = Appointment.builder()
