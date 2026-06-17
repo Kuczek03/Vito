@@ -35,15 +35,12 @@ public class PatientService {
         if (SecurityUtils.isPatient()) {
             targetUserId = SecurityUtils.getCurrentUserId();
         } else if (SecurityUtils.isAdmin() || SecurityUtils.isDoctor() || SecurityUtils.isNurse()) {
-            if (request.getUserId() == null) {
-                throw new IllegalArgumentException("Pole userId jest wymagane przy tworzeniu profilu pacjenta przez personel.");
-            }
             targetUserId = request.getUserId();
         } else {
             throw new AccessDeniedException("Brak uprawnień do tworzenia profilu pacjenta.");
         }
 
-        if (patientRepository.findByUserId(targetUserId).isPresent()) {
+        if (targetUserId != null && patientRepository.findByUserId(targetUserId).isPresent()) {
             throw new ConflictException("Ten użytkownik ma już profil pacjenta.");
         }
 
@@ -53,13 +50,47 @@ public class PatientService {
                 .lastName(encryptionService.encrypt(request.getLastName()))
                 .pesel(encryptionService.encrypt(request.getPesel()))
                 .peselHash(peselHash)
-                .phoneNumber(encryptionService.encrypt(request.getPhoneNumber()))
+                .phoneNumber(request.getPhoneNumber() != null
+                    ? encryptionService.encrypt(request.getPhoneNumber()) : null)
                 .createdAt(Instant.now())
                 .build();
 
         patientRepository.save(patient);
-        log.info("Patient profile created id={} targetUserId={} by userId={}",
-            patient.getId(), targetUserId, SecurityUtils.getCurrentUserId());
+        log.info("Patient created id={} userId={}", patient.getId(), targetUserId);
+        return toResponse(patient);
+    }
+
+    @Transactional
+    public PatientResponse update(Long id, PatientRequest request) {
+        if (!SecurityUtils.isAdmin() && !SecurityUtils.isDoctor() && !SecurityUtils.isNurse()) {
+            throw new AccessDeniedException("Brak uprawnień do edycji profilu pacjenta.");
+        }
+        Patient patient = findById(id);
+        patient.setFirstName(encryptionService.encrypt(request.getFirstName()));
+        patient.setLastName(encryptionService.encrypt(request.getLastName()));
+        if (request.getPhoneNumber() != null) {
+            patient.setPhoneNumber(encryptionService.encrypt(request.getPhoneNumber()));
+        }
+        patientRepository.save(patient);
+        log.info("Patient updated id={}", id);
+        return toResponse(patient);
+    }
+
+    @Transactional
+    public PatientResponse linkAccount(Long patientId, Long userId) {
+        if (!SecurityUtils.isAdmin()) {
+            throw new AccessDeniedException("Tylko administrator może powiązać konto z profilem pacjenta.");
+        }
+        Patient patient = findById(patientId);
+        if (patient.getUserId() != null) {
+            throw new ConflictException("Ten profil jest już powiązany z kontem userId=" + patient.getUserId());
+        }
+        if (patientRepository.findByUserId(userId).isPresent()) {
+            throw new ConflictException("To konto jest już powiązane z innym profilem pacjenta.");
+        }
+        patient.setUserId(userId);
+        patientRepository.save(patient);
+        log.info("Patient id={} linked to userId={}", patientId, userId);
         return toResponse(patient);
     }
 
@@ -79,15 +110,22 @@ public class PatientService {
     }
 
     private PatientResponse toResponse(Patient patient) {
-        String decryptedPesel = encryptionService.decrypt(patient.getPesel());
+        String pesel = safeDecrypt(patient.getPesel());
         return PatientResponse.builder()
                 .id(patient.getId())
                 .userId(patient.getUserId())
-                .firstName(encryptionService.decrypt(patient.getFirstName()))
-                .lastName(encryptionService.decrypt(patient.getLastName()))
-                .pesel(maskPesel(decryptedPesel))
-                .phoneNumber(encryptionService.decrypt(patient.getPhoneNumber()))
+                .firstName(safeDecrypt(patient.getFirstName()))
+                .lastName(safeDecrypt(patient.getLastName()))
+                .pesel(maskPesel(pesel))
+                .phoneNumber(patient.getPhoneNumber() != null
+                    ? safeDecrypt(patient.getPhoneNumber()) : null)
                 .build();
+    }
+
+    private String safeDecrypt(String value) {
+        if (value == null) return null;
+        try { return encryptionService.decrypt(value); }
+        catch (Exception e) { log.warn("safeDecrypt plaintext fallback"); return value; }
     }
 
     private String maskPesel(String pesel) {
@@ -97,7 +135,7 @@ public class PatientService {
 
     private void checkReadAccess(Patient patient) {
         if (SecurityUtils.isAdmin() || SecurityUtils.isDoctor() || SecurityUtils.isNurse()) return;
-        if (!patient.getUserId().equals(SecurityUtils.getCurrentUserId())) {
+        if (patient.getUserId() == null || !patient.getUserId().equals(SecurityUtils.getCurrentUserId())) {
             throw new AccessDeniedException("Brak dostępu do danych tego pacjenta.");
         }
     }

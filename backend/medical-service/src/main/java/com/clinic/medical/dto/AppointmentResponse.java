@@ -14,4 +14,5 @@ public class AppointmentResponse {
     private String            doctorName;
     private Instant           appointmentDate;
     private AppointmentStatus status;
+    private String            nurseNotes;   // <-- brakujące pole
 }

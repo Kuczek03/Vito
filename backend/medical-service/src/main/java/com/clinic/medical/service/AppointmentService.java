@@ -21,26 +21,24 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 
-@Slf4j
-@Service
-@RequiredArgsConstructor
+@Slf4j @Service @RequiredArgsConstructor
 public class AppointmentService {
 
-    private final AppointmentRepository appointmentRepository;
-    private final PatientRepository     patientRepository;
+    private final AppointmentRepository  appointmentRepository;
+    private final PatientRepository      patientRepository;
     private final MedicalStaffRepository medicalStaffRepository;
-    private final EncryptionService     encryptionService;
+    private final EncryptionService      encryptionService;
 
     @Transactional
     public AppointmentResponse create(AppointmentRequest request) {
-    Patient patient = findPatient(request.getPatientId());
+        Patient patient = findPatient(request.getPatientId());
 
-    if (SecurityUtils.isPatient()) {
-        if (!patient.getUserId().equals(SecurityUtils.getCurrentUserId())) {
-            throw new AccessDeniedException("Możesz umawiać wizyty tylko dla siebie.");
+        if (SecurityUtils.isPatient()) {
+            Long currentUserId = SecurityUtils.getCurrentUserId();
+            if (patient.getUserId() == null || !patient.getUserId().equals(currentUserId)) {
+                throw new AccessDeniedException("Możesz umawiać wizyty tylko dla siebie.");
+            }
         }
-    }
-
 
         MedicalStaff doctor = findDoctor(request.getDoctorId());
 
@@ -54,8 +52,7 @@ public class AppointmentService {
                 .build();
 
         appointmentRepository.save(appointment);
-        log.info("Appointment created id={} patient={} doctor={}",
-            appointment.getId(), patient.getId(), doctor.getId());
+        log.info("Appointment created id={} patient={} doctor={}", appointment.getId(), patient.getId(), doctor.getId());
         return toResponse(appointment);
     }
 
@@ -65,7 +62,7 @@ public class AppointmentService {
 
         if (SecurityUtils.isPatient()) {
             Patient patient = patientRepository.findByUserId(userId)
-                    .orElseThrow(() -> new NotFoundException("Nie znaleziono profilu pacjenta."));
+                    .orElseThrow(() -> new NotFoundException("Nie znaleziono profilu pacjenta dla tego konta."));
             return appointmentRepository.findByPatient_Id(patient.getId())
                     .stream().map(this::toResponse).toList();
         }
@@ -87,14 +84,14 @@ public class AppointmentService {
         appointment.setStatus(AppointmentStatus.CANCELLED);
         appointment.setUpdatedAt(Instant.now());
         appointmentRepository.save(appointment);
-        log.info("Appointment cancelled id={} by userId={}", id, SecurityUtils.getCurrentUserId());
+        log.info("Appointment cancelled id={}", id);
         return toResponse(appointment);
     }
 
     @Transactional
     public AppointmentResponse addNurseNotes(Long id, NurseNotesRequest request) {
         if (!SecurityUtils.isNurse() && !SecurityUtils.isAdmin()) {
-            throw new AccessDeniedException("Tylko pielęgniarka może dodawać notatki.");
+            throw new AccessDeniedException("Tylko pielęgniarka lub admin może dodawać notatki.");
         }
         Appointment appointment = findById(id);
         appointment.setNurseNotes(encryptionService.encrypt(request.getNotes()));
@@ -105,10 +102,14 @@ public class AppointmentService {
     }
 
     private void checkWriteAccess(Appointment appointment) {
-        Long userId = SecurityUtils.getCurrentUserId();
         if (SecurityUtils.isAdmin()) return;
-        if (SecurityUtils.isPatient() && appointment.getPatient().getUserId().equals(userId)) return;
+        Long userId = SecurityUtils.getCurrentUserId();
+        if (SecurityUtils.isPatient()) {
+            Long patientUserId = appointment.getPatient().getUserId();
+            if (patientUserId != null && patientUserId.equals(userId)) return;
+        }
         if (SecurityUtils.isDoctor() && appointment.getDoctor().getUserId().equals(userId)) return;
+        if (SecurityUtils.isNurse()) return;
         throw new AccessDeniedException("Brak uprawnień do modyfikacji tej wizyty.");
     }
 
@@ -116,17 +117,30 @@ public class AppointmentService {
         return AppointmentResponse.builder()
                 .id(a.getId())
                 .patientId(a.getPatient().getId())
-                .patientName(encryptionService.decrypt(a.getPatient().getFirstName()) + " "
-                           + encryptionService.decrypt(a.getPatient().getLastName()))
+                .patientName(safeDecrypt(a.getPatient().getFirstName())
+                    + " " + safeDecrypt(a.getPatient().getLastName()))
                 .doctorId(a.getDoctor().getId())
-                .doctorName(encryptionService.decrypt(a.getDoctor().getFirstName()) + " "
-                          + encryptionService.decrypt(a.getDoctor().getLastName()))
+                .doctorName(safeDecrypt(a.getDoctor().getFirstName())
+                    + " " + safeDecrypt(a.getDoctor().getLastName()))
                 .appointmentDate(a.getAppointmentDate())
                 .status(a.getStatus())
+                .nurseNotes(a.getNurseNotes() != null
+                    ? safeDecrypt(a.getNurseNotes()) : null)
                 .build();
     }
 
-    private Appointment  findById(Long id)     { return appointmentRepository.findById(id).orElseThrow(() -> new NotFoundException("Wizyta id=" + id + " nie istnieje.")); }
-    private Patient      findPatient(Long id)  { return patientRepository.findById(id).orElseThrow(() -> new NotFoundException("Pacjent id=" + id + " nie istnieje.")); }
-    private MedicalStaff findDoctor(Long id)   { return medicalStaffRepository.findById(id).orElseThrow(() -> new NotFoundException("Lekarz id=" + id + " nie istnieje.")); }
+    /** Bezpieczne deszyfrowanie — stare rekordy (plaintext) zwraca jak są */
+    private String safeDecrypt(String value) {
+        if (value == null) return null;
+        try {
+            return encryptionService.decrypt(value);
+        } catch (Exception e) {
+            log.warn("safeDecrypt: stary niezaszyfrowany rekord, zwracam plaintext");
+            return value;
+        }
+    }
+
+    private Appointment  findById(Long id)    { return appointmentRepository.findById(id).orElseThrow(() -> new NotFoundException("Wizyta id=" + id + " nie istnieje.")); }
+    private Patient      findPatient(Long id) { return patientRepository.findById(id).orElseThrow(() -> new NotFoundException("Pacjent id=" + id + " nie istnieje.")); }
+    private MedicalStaff findDoctor(Long id)  { return medicalStaffRepository.findById(id).orElseThrow(() -> new NotFoundException("Lekarz id=" + id + " nie istnieje.")); }
 }

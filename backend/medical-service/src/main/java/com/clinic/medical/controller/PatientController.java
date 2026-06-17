@@ -1,5 +1,6 @@
 package com.clinic.medical.controller;
 
+import com.clinic.medical.dto.LinkAccountRequest;
 import com.clinic.medical.dto.PatientRequest;
 import com.clinic.medical.dto.PatientResponse;
 import com.clinic.medical.service.PatientService;
@@ -21,6 +22,20 @@ public class PatientController {
     @PostMapping
     public ResponseEntity<PatientResponse> create(@Valid @RequestBody PatientRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(patientService.create(request));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<PatientResponse> update(
+            @PathVariable Long id,
+            @Valid @RequestBody PatientRequest request) {
+        return ResponseEntity.ok(patientService.update(id, request));
+    }
+
+    @PatchMapping("/{id}/link-account")
+    public ResponseEntity<PatientResponse> linkAccount(
+            @PathVariable Long id,
+            @Valid @RequestBody LinkAccountRequest request) {
+        return ResponseEntity.ok(patientService.linkAccount(id, request.getUserId()));
     }
 
     @GetMapping("/{id}")
