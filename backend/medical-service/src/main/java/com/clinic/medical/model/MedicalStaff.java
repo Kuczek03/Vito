@@ -18,6 +18,10 @@ public class MedicalStaff {
     @Column(nullable = false, unique = true)
     private Long userId;
 
+    // nick użytkownika – wyświetlany przy wyborze lekarza w formularzu wizyty
+    @Column(unique = true, length = 64)
+    private String username;
+
     @Column(nullable = false, length = 512)
     private String firstName;
 

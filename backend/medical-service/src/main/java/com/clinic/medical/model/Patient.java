@@ -4,19 +4,13 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.Instant;
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-@Entity
-@Table(name = "patients")
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@Entity @Table(name = "patients")
 public class Patient {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = true, unique = true)
     private Long userId;
 
     @Column(nullable = false, length = 512)
